@@ -86,7 +86,7 @@ class MasterAgent(ReactAgent):
         for agent in self.agents:
             if agent["name"] == name:
                 return agent["agent"]
-        return None, False
+        return None
     
     def gatekeeper_check(self, question: str, gk_data: str):
         gk_messages = [{
