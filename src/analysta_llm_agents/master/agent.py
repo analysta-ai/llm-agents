@@ -18,7 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from typing import Optional
+from typing import Any, Optional
 from langchain import hub
 from json import dumps
 
@@ -42,7 +42,7 @@ class MasterAgent(ReactAgent):
         if ctx is None:
             ctx = Context()
         
-        self.agents = self.get_agents(agents)
+        self.agents = self.get_agents(ctx, agents)
         self.gatekeeper = None
         if gatekeeper_repo:
             self.gatekeeper = hub.pull(gatekeeper_repo, api_key=api_key)
@@ -68,16 +68,16 @@ class MasterAgent(ReactAgent):
         self.agent_prompt = value.format(commands=self.str_commands, agents=self.str_agents, response_format=self.response_format)
     
     
-    def get_agents(self, agents_config: list[dict]):
+    def get_agents(self, ctx, agents_config: list[Any]):
         """Create list of tools from functions docstrings"""
         agents = []
         for index, agent in enumerate(agents_config):
-            repr_data = f'{index}. {agent["description"]}: name: "{agent["name"]}", args: "task": (str): "Task for agent to solve"'
+            agent_instance = agent(ctx)
+            repr_data = f'{index}. {agent_instance.__description__}: name: "{agent_instance.__name__}", args: "task": (str): "Task for agent to solve"'
             agents.append({
-                "name": agent["name"],
+                "name": agent_instance.__name__,
                 "__repr__": repr_data,
-                "agent": agent["init"],
-                "params": agent["params"]
+                "agent": agent_instance
             })
         return agents
     
@@ -85,7 +85,7 @@ class MasterAgent(ReactAgent):
         """Get function by name from list of tools"""
         for agent in self.agents:
             if agent["name"] == name:
-                return agent["agent"](ctx=self.ctx, **agent["params"])
+                return agent["agent"]
         return None, False
     
     def gatekeeper_check(self, question: str, gk_data: str):
