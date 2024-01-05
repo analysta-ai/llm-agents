@@ -28,7 +28,7 @@ from .constants import agent_response_format, gk_response_format
 
 class MasterAgent(ReactAgent):
     def __init__(self, 
-                 repo: str, 
+                 repo: Optional[str]=None, 
                  api_key: Optional[str]=None, 
                  agent_prompt: Optional[str]=None,
                  agents: Optional[list]=None,
@@ -147,4 +147,9 @@ class MasterAgent(ReactAgent):
                     return 
             else:
                 self.agent_messages.append({"role": "assistant", "content": "ERROR: Unknown command. Check the name of command"})
+        elif json_response['command']['type'] == 'complete_task':
+            yield json_response['command']['args']['result']
+            return
+        else:
+            self.agent_messages.append({"role": "assistant", "content": "ERROR: Unknown command type. Check the type of command"})
         yield from self.process_reponse()
