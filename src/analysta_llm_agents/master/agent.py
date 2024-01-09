@@ -24,6 +24,7 @@ from json import dumps
 
 from ..tools.context import Context
 from ..react.agent import ReactAgent
+from ..tools.utils import unpack_json
 from .constants import agent_response_format, gk_response_format
 
 class MasterAgent(ReactAgent):
@@ -92,10 +93,14 @@ class MasterAgent(ReactAgent):
         gk_messages = [{
             "role": "system",
             "content": self.gatekeeper.format(response_format=self.gk_response_format)
-        }, {
+        }]
+        for message in self.ctx.shared_memory:
+            if message not in gk_messages:
+                gk_messages.append(message)
+        gk_messages.append({
             "role": "user",
             "content": f"Question: {question}\n\Available Data: {gk_data}"
-        }]
+        })
         return self.get_response(gk_messages)
         
     

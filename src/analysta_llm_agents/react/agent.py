@@ -139,13 +139,16 @@ class ReactAgent(BaseAgent):
         if isinstance(json_response, str):
             self.agent_messages.append({"role": "user", "content": "You failed to return response in expecteed format. Try again"})    
             return self._pre_process_command()
-            
-        result = json_response["thoughts"]["text"]
         try:
-            del json_response["thoughts"]["reasoning"]
-            # del json_response["thoughts"]["criticism"]
+            result = json_response["thoughts"]["text"]
         except:
-            pass
+            self.agent_messages.append({"role": "user", "content": "You failed to return response in expecteed format. Try again"})    
+            return self._pre_process_command()
+        # try:
+            # del json_response["thoughts"]["reasoning"]
+            # del json_response["thoughts"]["criticism"]
+        # except:
+        #     pass
         if json_response.get(action_key) is None:
             print("[DEBUG]: No command in response", dumps(json_response, indent=2))
             return "Task is done", {}, True

@@ -18,12 +18,15 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+
+# "reasoning": " crisp reasoning, preferably in 2-4 bullet points",
+
 agent_response_format = """{
     "thoughts": {
-        "text": "thought and results of analysis created for the user to read in markdown format",
-        "reasoning": " crisp reasoning, preferably in 2-4 bullet points",
+        "text": "action summary to say to user, use bullets and tables to present data",
         "plan": "short bulleted, list that conveys long-term plan",
         "criticism": "constructive self-criticism",
+        
     },
     "command": {
         "name": "command name",
@@ -40,6 +43,5 @@ analyze_prompt = """This is the question:
 Additional context:
 {data}
 
-Expected result:
-Provide exact answer for a taks, not the way to solve it.
+Expected result: Provide exact answer, assuming that user can't execute code.
 """
