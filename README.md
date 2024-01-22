@@ -6,6 +6,8 @@ This repository contains a robust and flexible conversational agent system desig
 
 **ReactAgent**: This agent extends the BaseAgent and includes additional functionality for processing commands. It uses a list of tools (functions) to perform various actions based on the commands it receives.
 
+**RAG Agent**: This agent extends BaseAgent and generate response based on results of semantic search from vectorstore
+
 **MasterAgent**: This agent extends the ReactAgent and is designed to manage other agents. It can fetch other agents by their names and start tasks on them. It also includes a gatekeeper function that can validate user input.
 
 The system also includes a Context class that holds the application context, which is used by the agents to maintain state and share information.
