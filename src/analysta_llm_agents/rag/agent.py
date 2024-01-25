@@ -51,6 +51,7 @@ class RAGAgent(BaseAgent):
             page_top_k=1,
             weights=weights
         )    
+        
         super().__init__(repo=repo, api_key=api_key, agent_prompt=agent_prompt, 
                          model_type=model_type, model_params=model_params, 
                          response_format=response_format, ctx=ctx)
@@ -86,7 +87,7 @@ class RAGAgent(BaseAgent):
         messages.append(SystemMessage(content=context_message))
         messages.append(HumanMessage(content=context))
         messages.append(HumanMessage(content=input))
-        return self.ctx.llm(messages).content
+        return "**Answer**\n\n" +self.ctx.llm(messages).content + "\n\n**References**: \n\n" + "\n\n\t".join(references)
 
         
     def start(self, task: str):

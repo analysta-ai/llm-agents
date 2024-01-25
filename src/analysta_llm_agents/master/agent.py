@@ -20,6 +20,7 @@ from ..tools.context import Context
 from ..react.agent import ReactAgent
 from ..tools.utils import unpack_json
 from .constants import agent_response_format, gk_response_format
+from .base_commands import ask_user
 
 class MasterAgent(ReactAgent):
     def __init__(self, 
@@ -32,6 +33,7 @@ class MasterAgent(ReactAgent):
                  response_format: str=agent_response_format,
                  gatekeeper_repo: Optional[str]=None,  # This one needed if we want somehow validate user input
                  gatekeeper_reponse_format: Optional[str]=gk_response_format,
+                 actions: Optional[list]=[],
                  ctx: Optional[Context]=None):
         
         if ctx is None:
@@ -39,12 +41,13 @@ class MasterAgent(ReactAgent):
         
         self.agents = self.get_agents(ctx, agents)
         self.gatekeeper = None
+        actions = actions + [ask_user]
         if gatekeeper_repo:
             self.gatekeeper = hub.pull(gatekeeper_repo, api_key=api_key)
             self.gk_response_format = gatekeeper_reponse_format
-        
+        self.clear_on_start = True
         super().__init__(repo=repo, api_key=api_key, agent_prompt=agent_prompt, 
-                         actions=[], model_type=model_type, model_params=model_params, 
+                         actions=actions, model_type=model_type, model_params=model_params, 
                          response_format=response_format, ctx=ctx)
     
     @property
@@ -67,12 +70,11 @@ class MasterAgent(ReactAgent):
         """Create list of tools from functions docstrings"""
         agents = []
         for index, agent in enumerate(agents_config):
-            agent_instance = agent(ctx)
-            repr_data = f'{index}. {agent_instance.__description__}: name: "{agent_instance.__name__}", args: "task": (str): "Task for agent to solve"'
+            repr_data = f'{index}. {agent.__description__}: name: "{agent.__name__}", args: "task": (str): "Task for agent to solve"'
             agents.append({
-                "name": agent_instance.__name__,
+                "name": agent.__name__,
                 "__repr__": repr_data,
-                "agent": agent_instance
+                "agent": agent
             })
         return agents
     
@@ -99,8 +101,9 @@ class MasterAgent(ReactAgent):
         
     
     def start(self, task: str, clear: bool=True, gk_data: str=""):
-        if clear:
+        if clear and self.clear_on_start:
             self.clear_messages()
+        self.clear_on_start = True
         if gk_data and self.gatekeeper:
             result = self.gatekeeper_check(task, gk_data)
             if isinstance(result, dict):
@@ -138,6 +141,10 @@ class MasterAgent(ReactAgent):
                 print("ERROR: Unknown agent. Check the name of agent")
                 self.agent_messages.append({"role": "assistant", "content": "ERROR: Unknown agent. Check the name of agent"})
         elif json_response['command']['type'] == 'command':
+            if json_response["command"]["name"] == 'ask_user':
+                yield json_response['command']['args']['question']
+                self.clear_on_start = False
+                return
             command, context_required = self.get_func_by_name(json_response["command"]["name"])
             if command:
                 result, do_continue = self.process_command(command, json_response, context_required)
@@ -148,6 +155,10 @@ class MasterAgent(ReactAgent):
                 self.agent_messages.append({"role": "assistant", "content": "ERROR: Unknown command. Check the name of command"})
         elif json_response['command']['type'] == 'complete_task':
             yield json_response['command']['args']['result']
+            self.clear_on_start = False
+            return
+        elif json_response['command']['type'] == 'ask_user':
+            yield json_response['command']['args']['question']
             return
         else:
             self.agent_messages.append({"role": "assistant", "content": "ERROR: Unknown command type. Check the type of command"})

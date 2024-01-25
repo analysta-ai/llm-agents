@@ -3,3 +3,4 @@ langchain==0.0.343
 langchainhub==0.1.14
 langsmith==0.0.70
 tiktoken==0.5.2
+urllib3==2.1.0
