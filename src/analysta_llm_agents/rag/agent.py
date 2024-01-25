@@ -92,9 +92,7 @@ class RAGAgent(BaseAgent):
         
     def start(self, task: str):
         response = self._generateResponse(task)
-        try:
-             yield unpack_json(response.replace("\n", ""))
-        except:
-            yield response
+        self.ctx.last_message = response
+        yield response
     
         
