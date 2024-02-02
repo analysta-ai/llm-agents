@@ -12,6 +12,7 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
+import logging
 from typing import Optional
 
 from time import sleep
@@ -27,6 +28,9 @@ from openai import RateLimitError
 from ..tools.context import Context
 from ..tools.utils import unpack_json
 
+logger = logging.getLogger(__name__)
+
+
 class BaseAgent:
     def __init__(self, 
                  repo: Optional[str]=None, 
@@ -35,6 +39,7 @@ class BaseAgent:
                  model_type: Optional[str]=None,
                  model_params: Optional[dict]=None, 
                  response_format: str="",
+                 persist_messages: bool=False,
                  ctx: Optional[Context]=None):
         if ctx is None:
             self.ctx = Context()
@@ -45,6 +50,8 @@ class BaseAgent:
         self.ctx.llm = self.get_model(model_type, model_params)
         self.model_name = model_params.get("model_name")
         self.response_format = response_format
+        self.persist_messages = persist_messages
+        
         if agent_prompt:
             self.prompt = agent_prompt
         elif repo:
@@ -52,6 +59,7 @@ class BaseAgent:
         else:
             raise RuntimeError("You must specify either repo or agent_prompt")
         self.agent_messages = []
+        
         self.reset()
     
     
@@ -105,7 +113,7 @@ class BaseAgent:
                 _messages.append(HumanMessage(content=message["content"]))
             else:
                 _messages.append(AIMessage(content=message["content"]))
-        # print(_messages)
+        logger.debug(f"Constructed messages: {_messages}")
         return _messages
     
     def reset(self):
@@ -116,7 +124,7 @@ class BaseAgent:
         })
     
     def start(self, task: str):
-        self.agent_messages.append({"role": "user", "content": f"Task: \n\n{task}"})
+        self.agent_messages.append({"role": "user", "content": task})
         yield from self.process_reponse()
     
     def get_response(self, messages: Optional[list]=None):

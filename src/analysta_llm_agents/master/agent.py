@@ -15,12 +15,15 @@
 from typing import Any, Optional
 from langchain import hub
 from json import dumps
+import logging
 
 from ..tools.context import Context
 from ..react.agent import ReactAgent
 from ..tools.utils import unpack_json
 from .constants import agent_response_format, gk_response_format
 from .base_commands import ask_user
+
+logger = logging.getLogger(__name__)
 
 class MasterAgent(ReactAgent):
     def __init__(self, 
@@ -34,11 +37,11 @@ class MasterAgent(ReactAgent):
                  gatekeeper_repo: Optional[str]=None,  # This one needed if we want somehow validate user input
                  gatekeeper_reponse_format: Optional[str]=gk_response_format,
                  actions: Optional[list]=[],
+                 persist_messages: bool=True,
                  ctx: Optional[Context]=None):
         
         if ctx is None:
             ctx = Context()
-        
         self.agents = self.get_agents(ctx, agents)
         self.gatekeeper = None
         actions = actions + [ask_user]
@@ -48,7 +51,7 @@ class MasterAgent(ReactAgent):
         self.clear_on_start = True
         super().__init__(repo=repo, api_key=api_key, agent_prompt=agent_prompt, 
                          actions=actions, model_type=model_type, model_params=model_params, 
-                         response_format=response_format, ctx=ctx)
+                         response_format=response_format, persist_messages=persist_messages, ctx=ctx)
     
     @property
     def str_agents(self):
@@ -113,32 +116,33 @@ class MasterAgent(ReactAgent):
             else:
                 yield result
                 return
-        print("[DEBUG] MasterAgent start: ", task)
+        logger.debug("MasterAgent start: %s", task)
         self.agent_messages.append({"role": "user", "content": f"Task: \n\n{task}"})
+        # self.ctx.agent_messages.append({"role": "user", "content": f"Task: \n\n{task}"})
         yield from self.process_reponse()
     
     def highlights_from_agent(self):
         for message in self.ctx.shared_memory:
             if message not in self.agent_messages:
                 self.agent_messages.append(message)
-        print(self.agent_messages)
+        logger.info("Highlights from agent: %s", self.agent_messages)
 
     def process_reponse(self):
         result, json_response, do_continue = self._pre_process_command()
-        print("[DEBUG] MasterAgent:", dumps(json_response, indent=2))
+        logger.debug("MasterAgent: %s", dumps(json_response, indent=2))
         yield result
         if do_continue:
             return
         if json_response['command']['type'] == 'agent':
             agent = self.get_agent_by_name(json_response['command']['name'])
-            print("[DEBUG] Agent: ", str(agent))
+            logger.debug("Agent: %s", str(agent))
             if agent:
                 for message in agent.start(json_response['command']['args']['task']):
                     yield message
                 self.highlights_from_agent()
                 self.agent_messages.append({"role": "system", "content": self.ctx.last_message})
             else:
-                print("ERROR: Unknown agent. Check the name of agent")
+                logger.error("Unknown agent: %s. Check the name of agent", str(agent))
                 self.agent_messages.append({"role": "assistant", "content": "ERROR: Unknown agent. Check the name of agent"})
         elif json_response['command']['type'] == 'command':
             if json_response["command"]["name"] == 'ask_user':
@@ -155,10 +159,12 @@ class MasterAgent(ReactAgent):
                 self.agent_messages.append({"role": "assistant", "content": "ERROR: Unknown command. Check the name of command"})
         elif json_response['command']['type'] == 'complete_task':
             yield json_response['command']['args']['result']
-            self.clear_on_start = False
+            if not self.persist_messages:
+                self.agent_messages = []
             return
         elif json_response['command']['type'] == 'ask_user':
             yield json_response['command']['args']['question']
+            self.clear_on_start = False
             return
         else:
             self.agent_messages.append({"role": "assistant", "content": "ERROR: Unknown command type. Check the type of command"})

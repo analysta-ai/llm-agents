@@ -31,7 +31,7 @@ def remember_last_message(ctx: Any, message: Optional[str]=''):
     return {"result": "Last message remembered"}
 
 
-def complete_task(result: str) -> str:
+def complete_task(ctx: Any, result: str) -> str:
     """Mark task as completed
     Args:
         result (str): "Result of task"

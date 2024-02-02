@@ -12,6 +12,8 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
+import logging
+
 from typing import Optional
 from json import dumps
 
@@ -19,6 +21,8 @@ from ..tools.context import Context
 from ..base.agent import BaseAgent
 from .constants import agent_response_format
 from .base_commands import __all__ as base_actions
+
+logger = logging.getLogger(__name__)
 
 class ReactAgent(BaseAgent):
     def __init__(self, 
@@ -29,6 +33,7 @@ class ReactAgent(BaseAgent):
                  model_type: Optional[str]=None,
                  model_params: Optional[dict]=None, 
                  response_format: str=agent_response_format,
+                 persist_messages: bool=False,
                  ctx: Optional[Context]=None):
         
         if ctx is None:
@@ -43,7 +48,7 @@ class ReactAgent(BaseAgent):
         
         super().__init__(repo=repo, api_key=api_key, agent_prompt=agent_prompt, 
                          model_type=model_type, model_params=model_params, 
-                         response_format=response_format, ctx=ctx)
+                         response_format=response_format, persist_messages=persist_messages, ctx=ctx)
     
     
     @property
@@ -77,7 +82,7 @@ class ReactAgent(BaseAgent):
                 "func": func,
                 "context": context_required
             })
-        # print(tools)
+        logger.debug(f"Tools: {tools}")
         return tools
     
     def get_func_by_name(self, name: str):
@@ -96,62 +101,56 @@ class ReactAgent(BaseAgent):
     def start(self, task: str, clear: bool=True):
         if clear:
             self.clear_messages()
-        # print("[DEBUG] ReactAgent start: ", self.agent_messages)
-        print("[DEBUG] ReactAgent start: ", task)
-        # yield from super().start(task)
-        self.agent_messages.append({"role": "user", "content": f"Task: \n\n{task}"})
-        yield from self.process_reponse()
+        logger.debug(f"ReactAgent start: {task}")
+        yield from super().start(task)
     
     def process_command(self, command: str, command_args: dict, context_required: bool=False):
-        print("[DEBUG]: Command: ", command.__name__, "Context required: ", 
-              context_required, "Args: ", command_args["command"].get("args",{}))
-        print()
+        logger.debug(f"ReactAgent process_command: {command.__name__}, context_required: {context_required}, args: {command_args['command'].get('args',{})}")
         if context_required:
             res = command(self.ctx, **command_args["command"].get("args",{}))
         else:
             res = command(**command_args["command"].get("args",{}))
         try:
-            print("[DEBUG]: Command result: ", dumps(res, indent=2))
+            logger.debug(f"Command result: {dumps(res, indent=2)}")
         except:
             pass
         keys = list(res.keys())
         self.agent_messages.append({"role": "assistant", "content": res['result']})
         self.ctx.last_message = res["result"]
         if 'done' in keys and res['done']:
+            if not self.persist_messages:
+                self.agent_messages = []
             return res['result'], True
         keys.pop(keys.index('result'))
         if len(keys) > 0:
             for key in keys:
-                print(key, res[key])
+                logger.debug(f"Setting context: {key} = {res[key]}")
                 self.ctx.__setattr__(key, res[key])
         return None, False
 
-    def _pre_process_command(self, action_key: str="command"):
+    def _pre_process_command(self, action_key: str="command", retry: int=0, max_retries: int=3):
         json_response = self.get_response()
-        # print("[DEBUG]: _pre_process_process_reponse :", dumps(json_response, indent=2))
-        
+        logger.debug(f"ReactAgent _pre_process_command: {dumps(json_response, indent=2)}")
+        if retry >= max_retries:
+            return json_response, {}, True
         if isinstance(json_response, str):
             self.agent_messages.append({"role": "user", "content": "You failed to return response in expecteed format. Try again"})    
-            return self._pre_process_command()
+            return self._pre_process_command(retry=retry+1)
         try:
             result = json_response["thoughts"]["text"]
         except:
             self.agent_messages.append({"role": "user", "content": "You failed to return response in expecteed format. Try again"})    
-            return self._pre_process_command()
-        # try:
-            # del json_response["thoughts"]["reasoning"]
-            # del json_response["thoughts"]["criticism"]
-        # except:
-        #     pass
+            return self._pre_process_command(retry=retry+1)
+        
         if json_response.get(action_key) is None:
-            print("[DEBUG]: No command in response", dumps(json_response, indent=2))
+            logger.debug(f"No command in response: {dumps(json_response, indent=2)}")
             return "Task is done", {}, True
         self.agent_messages.append({"role": "assistant", "content": dumps(json_response)})
         return result, json_response, False
         
     def process_reponse(self):
         result, json_response, do_continue = self._pre_process_command()
-        # print("[DEBUG]: process_reponse :", dumps(json_response, indent=2))
+        logger.debug(f"ReactAgent process_reponse: {dumps(json_response, indent=2)}")
         yield result
         if do_continue:
             return
