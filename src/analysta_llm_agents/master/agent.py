@@ -21,7 +21,6 @@ from ..tools.context import Context
 from ..react.agent import ReactAgent
 from ..tools.utils import unpack_json
 from .constants import agent_response_format, gk_response_format
-from .base_commands import ask_user
 
 logger = logging.getLogger(__name__)
 
@@ -44,11 +43,10 @@ class MasterAgent(ReactAgent):
             ctx = Context()
         self.agents = self.get_agents(ctx, agents)
         self.gatekeeper = None
-        actions = actions + [ask_user]
+        actions = actions
         if gatekeeper_repo:
             self.gatekeeper = hub.pull(gatekeeper_repo, api_key=api_key)
             self.gk_response_format = gatekeeper_reponse_format
-        self.clear_on_start = True
         super().__init__(repo=repo, api_key=api_key, agent_prompt=agent_prompt, 
                          actions=actions, model_type=model_type, model_params=model_params, 
                          response_format=response_format, persist_messages=persist_messages, ctx=ctx)

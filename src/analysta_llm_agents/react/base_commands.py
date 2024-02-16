@@ -53,8 +53,17 @@ def ask_llm(ctx: Any, hypothesis: str, data_for_analysis: str) -> str:
         llm_reponse = ctx.llm(predict_message).content
     return {"result": llm_reponse}
 
+def ask_user(ctx: Any, question: str):
+    """ Ask user a question and wait for input
+    Agrs:
+        question (str): question to be asked
+    """
+    pass
+
+
 __all__ = [
     remember_last_message,
     complete_task,
-    ask_llm
+    ask_llm,
+    ask_user
 ]

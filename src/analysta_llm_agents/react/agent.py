@@ -45,7 +45,7 @@ class ReactAgent(BaseAgent):
             actions = base_actions
         
         self.tools = self.get_tools(actions)
-        
+        self.clear_on_start = True
         super().__init__(repo=repo, api_key=api_key, agent_prompt=agent_prompt, 
                          model_type=model_type, model_params=model_params, 
                          response_format=response_format, persist_messages=persist_messages, ctx=ctx)
@@ -99,8 +99,9 @@ class ReactAgent(BaseAgent):
             self.agent_messages.append(message)
     
     def start(self, task: str, clear: bool=True):
-        if clear:
+        if clear and self.clear_on_start:
             self.clear_messages()
+        self.clear_on_start = True
         logger.debug(f"ReactAgent start: {task}")
         yield from super().start(task)
     
@@ -130,17 +131,26 @@ class ReactAgent(BaseAgent):
 
     def _pre_process_command(self, action_key: str="command", retry: int=0, max_retries: int=3):
         json_response = self.get_response()
-        logger.debug(f"ReactAgent _pre_process_command: {dumps(json_response, indent=2)}")
+        result = ""
+        logger.info(f"ReactAgent _pre_process_command: {dumps(json_response, indent=2)}")
         if retry >= max_retries:
             return json_response, {}, True
         if isinstance(json_response, str):
-            self.agent_messages.append({"role": "user", "content": "You failed to return response in expecteed format. Try again"})    
+            logging.error(f"Failed to get response: {json_response}")
+            if self.agent_messages[-1]['content'] != "You failed to return response in expecteed format. Try again":
+                self.agent_messages.append({"role": "user", "content": "You failed to return response in expecteed format. Try again"})    
             return self._pre_process_command(retry=retry+1)
         try:
             result = json_response["thoughts"]["text"]
         except:
-            self.agent_messages.append({"role": "user", "content": "You failed to return response in expecteed format. Try again"})    
-            return self._pre_process_command(retry=retry+1)
+            
+            logging.warning(f"NO THROUGHTS SECTION: {json_response}")
+            if json_response.get('command'):
+                pass
+            else:
+                if self.agent_messages[-1]['content'] != "You failed to return response in expecteed format. Try again":
+                    self.agent_messages.append({"role": "user", "content": "You failed to return response in expecteed format. Try again"})    
+                return self._pre_process_command(retry=retry+1)
         
         if json_response.get(action_key) is None:
             logger.debug(f"No command in response: {dumps(json_response, indent=2)}")
@@ -155,6 +165,10 @@ class ReactAgent(BaseAgent):
         if do_continue:
             return
         # TODO: This one need to be refactored
+        if json_response["command"]["name"] == 'ask_user':
+            yield json_response['command']['args']['question']
+            self.clear_on_start = False
+            return
         command, context_required = self.get_func_by_name(json_response["command"]["name"])
         if command:
             result, do_continue = self.process_command(command, json_response, context_required)
