@@ -25,3 +25,10 @@ def unpack_json(json_data):
         return json_data
     else:
         raise ValueError("Wrong type of json_data")
+
+class MaxRetriesExceededError(Exception):
+    """Raised when the maximum number of retries is exceeded"""
+    
+    def __init__(self, message="Maximum number of retries exceeded"):
+        self.message = message
+        super().__init__(self.message)

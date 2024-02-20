@@ -142,8 +142,7 @@ class ReactAgent(BaseAgent):
             return self._pre_process_command(retry=retry+1)
         try:
             result = json_response["thoughts"]["text"]
-        except:
-            
+        except:    
             logging.warning(f"NO THROUGHTS SECTION: {json_response}")
             if json_response.get('command'):
                 pass

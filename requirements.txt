@@ -1,6 +1,8 @@
 openai==1.3.7
-langchain==0.0.343
-langchainhub==0.1.14
-langsmith==0.0.70
+# langchain==0.0.343
+# langchainhub==0.1.14
+# langsmith==0.0.70
 tiktoken==0.5.2
 urllib3==2.1.0
+jsonpath-ng==1.6.1
+analysta_index==0.2.2
