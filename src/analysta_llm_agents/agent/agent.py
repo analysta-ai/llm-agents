@@ -344,15 +344,17 @@ Recieved data: {json_response}"""})
                     yield tool_message['args']['result']
                     self.add_to_short_term("assistant", tool_message['args']['result'], conversation_id)
                     self.ctx.last_message = tool_message['args']['result']
-                    return
-                # TODO: Add specific command to search for data in datasources
-                command = self._get_callable_by_name(tool_message['name'], 'tool')
-                if command:
-                    self.process_command(command, tool_message.get('args', {}), conversation_id)
+                    return 
                 else:
-                    self.temporary_messages.append(
-                        {"role": "user", "content": "ERROR: Unknown command. Check the name of command"}
-                    )
+                    # TODO: Add specific command to search for data in datasources
+                    command = self._get_callable_by_name(tool_message['name'], 'tool')
+                    if command:
+                        self.process_command(command, tool_message.get('args', {}), conversation_id)
+                    else:
+                        self.temporary_messages.append(
+                            {"role": "user", "content": "ERROR: Unknown command. Check the name of command"}
+                        )
+                    yield from self.process_response(conversation_id)
             elif contractor_message:
                 if contractor_message['name'] == 'complete_task':
                     yield contractor_message['args']['result']
@@ -360,17 +362,18 @@ Recieved data: {json_response}"""})
                     self.add_to_short_term("assistant", tool_message['args']['result'], conversation_id)
                     self.ctx.last_message = tool_message['args']['result']
                     return
-                contractor = self._get_callable_by_name(tool_message['name'], 'contractor')
-                if contractor:
-                    for message in contractor.start(contractor_message['args']['task'], conversation_id):
-                        yield message
                 else:
-                    self.temporary_messages.append(
-                        {"role": "user", "content": "ERROR: Unknown contractor. Check the name of contractor"}
-                    )
+                    contractor = self._get_callable_by_name(tool_message['name'], 'contractor')
+                    if contractor:
+                        for message in contractor.start(contractor_message['args']['task'], conversation_id):
+                            yield message
+                    else:
+                        self.temporary_messages.append(
+                            {"role": "user", "content": "ERROR: Unknown contractor. Check the name of contractor"}
+                        )
+                yield from self.process_response(conversation_id)
         except MaxRetriesExceededError as e:
-            yield e.message
-            return   
+            yield e.message   
         
     def start(self, task: str, conversation_id: str):
         self.clear_on_start = True
