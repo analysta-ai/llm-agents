@@ -49,6 +49,7 @@ class Agent:
         message_key: Optional[str]="thoughts.text", # jsonpath to the message that should be displayed to user
         tool_key: Optional[str]='tool', # jsonpath to the command that should be executed
         contractor_key: Optional[str]='agent', # jsonpath to the contractor that should be executed
+        plan_key:Optional[str]='thoughts.plan', # jsonpath to the plan that should be executed
         agent_constraints: Optional[str]='',
         datasources: Optional[list]=[],
         tools: Optional[list]=[],
@@ -95,10 +96,13 @@ class Agent:
         self.message_key = jsonpath.parse(message_key)
         self.tool_response = None
         self.contractor_key = None
+        self.plan_key = None
         if tool_key:
             self.tool_response = jsonpath.parse(tool_key)
         if contractor_key:
             self.contractor_key = jsonpath.parse(contractor_key)
+        if plan_key:
+            self.plan_key = jsonpath.parse(plan_key)
         # this one will be used to correct behavior of the agent, like response format
         self.temporary_messages = [] 
         print(self.agent_prompt)
@@ -251,7 +255,7 @@ class Agent:
         except:
             return response
     
-    def _pre_process(self, retry: int=0):
+    def _pre_process(self, conversation_id, retry: int=0):
         json_response = self.get_response()
         logger.info(f"ReactAgent _pre_process: {json.dumps(json_response, indent=2)}")
         if retry >= self.max_retries:
@@ -265,14 +269,14 @@ The response may have a great data, format response to the required JSON strcutu
 Expected format: {self.text_response_format}
 
 Recieved data: {json_response}"""})
-            return self._pre_process(retry=retry+1)
+            return self._pre_process(conversation_id, retry=retry+1)
         tool_message = None
         contractor_message = None
-        user_message = "\n\n".join([match.value for match in self.message_key.find(json_response)])
+        user_message = "\n\n".join([match.value for match in self.message_key.find(json_response)])    
         if not user_message:
             logger.error(f"User message on JSONPATH {str(self.message_key)} was not found in response. Try again")
             self.temporary_messages.append({"role": "user", "content": f"User message on JSONPATH {str(self.message_key)} was not found in response. Try again"})
-            return self._pre_process(retry=retry+1)
+            return self._pre_process(conversation_id, retry=retry+1)
         if self.tool_response:
             tool_message = [match.value for match in self.tool_response.find(json_response)]
             logger.info(f"Tool message from _pre_process: {tool_message}")
@@ -281,19 +285,24 @@ Recieved data: {json_response}"""})
             elif len(tool_message) > 1:
                 logger.error("Multiple tool messages found in response, only one allowed. Try again")
                 self.temporary_messages.append({"role": "user", "content": f"Multiple tool messages found in response, only one allowed. Try again"})
-                return self._pre_process(retry=retry+1)
+                return self._pre_process(conversation_id, retry=retry+1)
         if self.contractor_key:
             contractor_message = [match.value for match in self.contractor_key.find(json_response)]
             if len(contractor_message) == 1:
                 contractor_message = contractor_message[0]
             elif len(contractor_message) > 1:
                 logger.error("Multiple contractor messages found in response, only one allowed. Try again")
-                self._pre_process.append({"role": "user", "content": f"Multiple contractor messages found in response, only one allowed. Try again"})
-                return self._pre_process(retry=retry+1)
+                self.temporary_messages.append({"role": "user", "content": f"Multiple contractor messages found in response, only one allowed. Try again"})
+                return self._pre_process(conversation_id, retry=retry+1)
         if tool_message and contractor_message:
             logger.error("Both tool and contractor messages found in response, only one allowed. Try again")
             self.temporary_messages.append({"role": "user", "content": f"Both tool and contractor messages found in response, only one allowed. Try again"})
-            return self._pre_process(retry=retry+1)
+            return self._pre_process(conversation_id, retry=retry+1)
+        plan = ''
+        if self.plan_key:
+            plan = str([match.value for match in self.plan_key.find(json_response)])
+            
+        self.add_to_short_term("assistant", f"{user_message}\n\n{plan}", conversation_id )
         return user_message, tool_message, contractor_message
     
     def process_command(self, command: str, command_args: dict, conversation_id: str):
@@ -323,18 +332,19 @@ Recieved data: {json_response}"""})
             logger.error(format_exc())
             self.temporary_messages.append({
                 "role": "user", 
-                "content": f"ERROR: {str(e)}"
+                "content":
+                    f"ERROR: {str(e)}"
             })
     
     def process_response(self, conversation_id):
         try:
-            user_message, tool_message, contractor_message = self._pre_process()
+            user_message, tool_message, contractor_message = self._pre_process(conversation_id)
             logger.info(f"User message: {user_message}")
             logger.info(f"Tool message: {tool_message}")
             logger.info(f"Contractor message: {contractor_message}")
             
             yield user_message
-            self.add_to_short_term("assistant", user_message, conversation_id)
+            
             if tool_message:
                 if tool_message['name'] ==  'ask_user':
                     yield tool_message['args']['question']
