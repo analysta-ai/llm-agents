@@ -61,13 +61,12 @@ def ask_llm_within_conversation(ctx: Any, cid: str, role:str, task: str, query_t
 
 
 def ask_llm_outside_conversation(ctx: Any, role:str, task: str, data_for_analysis: str, expected_result:str) -> str:
-    """Ask large languale model to generate the response based on provided data. 
-    the call is made outside of conversation, neither short-term nor long-term memory is used.
+    """Ask LLM to help with task, make sure to provide all data to help LLM to understand the task, scope and expected result
     
     Args:
         role (str): "Role of LLM"
         task (str): "Task to solve"
-        data_for_analysis (str): "Data to use as context"
+        data_for_analysis (str): "complete data for comleting the task"
         expected_result (str): "What is expected as a result of the task"
     """
     predict_message = [ HumanMessage(content=analyze_prompt.format(
@@ -86,6 +85,7 @@ def ask_llm_outside_conversation(ctx: Any, role:str, task: str, data_for_analysi
 
 def ask_user(ctx: Any, question: str): 
     """ Ask user a question and wait for input
+    
     Agrs:
         question (str): question to be asked
     """
@@ -93,15 +93,25 @@ def ask_user(ctx: Any, question: str):
 
 def complete_task(ctx: Any, result: str) -> str:
     """Mark task as completed
+    
     Args:
         result (str): "Result of task"
     """
     pass
 
 
+def remind(ctx: Any, topic: str) -> str:
+    """Get set of documents from long term memory on the topic
+    
+    Args:
+        topic (str): "Topic to remind about"
+    """
+    return "\n\n".join(res["content"] for res in ctx.memory.search(topic))
+
 __all__ = [
     ask_llm_within_conversation,
     ask_llm_outside_conversation,
     complete_task,
-    ask_user
+    ask_user,
+    remind
 ]

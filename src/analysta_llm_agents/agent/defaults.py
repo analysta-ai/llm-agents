@@ -64,7 +64,7 @@ Performance Evaluation:
 Respond only with JSON format as described below
 {response_format}
 
-Ensure the response contains only JSON and it could be parsed by Python json.loads
+You must answer with only JSON and it could be parsed by Python json.loads
 """
 
 weights = {

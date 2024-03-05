@@ -78,7 +78,7 @@ class Agent:
             
         self.short_term_memory_limit = short_term_memory_limit
         
-        agent_constraints += f"\n - Your short term memory is limited to {short_term_memory_limit} tokens, prefer not to be very chatty"
+        agent_constraints += f"\n - Your short term memory is limited to {short_term_memory_limit} tokens, prefer not to be very chatty unless explicitely asked"
         agent_constraints += '\n - You have long term memory that stores stores information about the tasks you have solved, you can ask summary from it using "remind" tool'
         
         if not self.ctx.is_set("llm"):
@@ -119,12 +119,14 @@ class Agent:
             instruments += f"\n\n{self.str_datasources}"
         if self.tools and self.contractors:
             agent_constraints += '\n - Exclusively use the tools and contractors listed in double quotes e.g. "tool1" or "contractor1"'
-            agent_constraints += '\n - You can use either one tool or one contactor at a time, not both'
+            agent_constraints += '\n - You must use either one tool or one contactor at a time, not both, but at least one is required'
         elif self.tools and not self.contractors:
             agent_constraints += '\n - Exclusively use the tools listed in double quotes e.g. "tool1"'
+            agent_constraints += '\n - You must use tool in every response'
         elif not self.tools and self.contractors:
             # this is hypothetical as there are default tools for the agent
             agent_constraints += '\n - Exclusively use the contractors listed in double quotes e.g. "contractor1"'
+            agent_constraints += '\n - You must use contractor in every response'
         if self.datasources:
             agent_constraints += '\n - You have additional knowledge stored with datasources, you can search for it using "searchDatasource" tool'
         prompt = default_prompt.format(agent_prompt=agent_prompt, 
@@ -297,6 +299,10 @@ Recieved data: {json_response}"""})
         if tool_message and contractor_message:
             logger.error("Both tool and contractor messages found in response, only one allowed. Try again")
             self.temporary_messages.append({"role": "user", "content": f"Both tool and contractor messages found in response, only one allowed. Try again"})
+            return self._pre_process(conversation_id, retry=retry+1)
+        if not tool_message and not contractor_message:
+            logger.error("No tool or contractor messages found in response, at least one required. Try again")
+            self.temporary_messages.append({"role": "user", "content": f"No tool or contractor messages found in response, at least one required. Try again"})
             return self._pre_process(conversation_id, retry=retry+1)
         plan = ''
         if self.plan_key:
