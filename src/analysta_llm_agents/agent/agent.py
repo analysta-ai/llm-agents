@@ -77,7 +77,8 @@ class Agent:
             self.ctx.output_tokens = 0
             
         self.short_term_memory_limit = short_term_memory_limit
-        
+        agent_constraints += "\n - Always keep in mind the big picture and the long-term plan"
+        agent_constraints += "\n - Reflect on past decisions and strategies to refine your approach"
         agent_constraints += f"\n - Your short term memory is limited to {short_term_memory_limit} tokens, prefer not to be very chatty unless explicitely asked"
         agent_constraints += '\n - You have long term memory that stores stores information about the tasks you have solved, you can ask summary from it using "remind" tool'
         
@@ -138,15 +139,15 @@ class Agent:
     
     @property
     def str_tools(self):
-        return "Tools:\n" + "\n".join([tool["__repr__"] for tool in self.tools])
+        return "### Tools:\n" + "\n".join([tool["__repr__"] for tool in self.tools])
 
     @property
     def str_contractors(self):
-        return "Contractors:\n" + "\n".join([contractor["__repr__"] for contractor in self.contractors])
+        return "### Contractors:\n" + "\n".join([contractor["__repr__"] for contractor in self.contractors])
 
     @property
     def str_datasources(self):
-        return "Datasources:\n" + "\n".join([datasource["__repr__"] for datasource in self.datasources])
+        return "### Datasources:\n" + "\n".join([datasource["__repr__"] for datasource in self.datasources])
     
     def _get_tools(self, functions: list):
         """Create list of tools from functions docstrings"""
@@ -253,7 +254,7 @@ class Agent:
             response = self.ctx.llm.invoke(self.construct_messages(messages)).content
         self.count_tokens_from_response(response)
         try:
-             return unpack_json(response.replace("\n", ""))
+             return unpack_json(response.replace("\n", ""), self.message_key)
         except:
             return response
     
@@ -284,6 +285,8 @@ Recieved data: {json_response}"""})
             logger.info(f"Tool message from _pre_process: {tool_message}")
             if len(tool_message) == 1:
                 tool_message = tool_message[0]
+                if not tool_message.get("name"):  # if there is no tool and name is empty
+                    tool_message = None
             elif len(tool_message) > 1:
                 logger.error("Multiple tool messages found in response, only one allowed. Try again")
                 self.temporary_messages.append({"role": "user", "content": f"Multiple tool messages found in response, only one allowed. Try again"})
@@ -292,6 +295,8 @@ Recieved data: {json_response}"""})
             contractor_message = [match.value for match in self.contractor_key.find(json_response)]
             if len(contractor_message) == 1:
                 contractor_message = contractor_message[0]
+                if not contractor_message.get("name"): # if there is no contractor and name is empty
+                    contractor_message = None
             elif len(contractor_message) > 1:
                 logger.error("Multiple contractor messages found in response, only one allowed. Try again")
                 self.temporary_messages.append({"role": "user", "content": f"Multiple contractor messages found in response, only one allowed. Try again"})
@@ -320,7 +325,7 @@ Recieved data: {json_response}"""})
                 res = command(self.ctx, conversation_id, **command_args)
             else:
                 res = command(self.ctx, **command_args)
-            self.add_to_short_term("assistant", res, conversation_id)
+            self.add_to_short_term("user", res, conversation_id)
             self.ctx.last_message = res
         except KeyError as e:
             logger.error(format_exc())
@@ -382,6 +387,7 @@ Recieved data: {json_response}"""})
                     contractor = self._get_callable_by_name(tool_message['name'], 'contractor')
                     if contractor:
                         for message in contractor.start(contractor_message['args']['task'], conversation_id):
+                            self.add_to_short_term("user", message, conversation_id)
                             yield message
                     else:
                         self.temporary_messages.append(

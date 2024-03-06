@@ -50,16 +50,10 @@ Expected result:
 
 default_prompt = """{agent_prompt}
 
-Constraints:
+### Constraints:
 {agent_constraints}
     
 {instruments}
-
-Performance Evaluation:
-1. Continuously review and analyze your actions to ensure you are performing to the best of your abilities.
-2. Constructively self-criticize your big-picture behavior constantly.
-3. Reflect on past decisions and strategies to refine your approach.
-4. Every command has a cost, so be smart and efficient. Aim to complete tasks in the least number of steps.
 
 Respond only with JSON format as described below
 {response_format}
